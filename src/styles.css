@@ -82,6 +82,7 @@ textarea.song-text { width: 100%; min-height: 50vh; font: 15px/1.5 ui-monospace,
 .pill.next { border-color: var(--accent); }
 .pill.current { background: var(--accent); color: var(--accent-ink); transform: scale(1.04); }
 .pill.current .beats { color: var(--accent-ink); }
+.pill.current::after { content: ''; position: absolute; left: 10%; bottom: 4px; height: 3px; border-radius: 2px; width: calc(80% * var(--progress, 0)); background: color-mix(in srgb, var(--accent-ink) 45%, transparent); transition: width 0.1s linear; }
 .chart.uncertain .pill.current { background: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
 .chart-end { height: 1px; }
 

@@ -16,6 +16,12 @@ export type ChromaOptions = {
   peakRangeDb: number;
   /** Absolute dB floor for a peak. */
   minPeakDb: number;
+  /**
+   * Upper edge of the "bass" chroma. Guitar low strings live below ~200 Hz; most
+   * singing (and all of a typical female voice) sits above it, so the bass
+   * chroma is a voice-resistant second opinion on the chord.
+   */
+  bassMaxHz: number;
 };
 
 export const DEFAULT_CHROMA_OPTIONS: ChromaOptions = {
@@ -24,11 +30,14 @@ export const DEFAULT_CHROMA_OPTIONS: ChromaOptions = {
   noiseFloor: 0.0012,
   peakRangeDb: 45,
   minPeakDb: -95,
+  bassMaxHz: 200,
 };
 
 export type ChromaFrame = {
   /** L2-normalised chroma, or null for silence */
   chroma: Float32Array | null;
+  /** L2-normalised chroma of peaks below bassMaxHz, or null if there are none */
+  bass: Float32Array | null;
   /** RMS of linear magnitude across the band */
   energy: number;
   /** loudest peak in dB */
@@ -77,9 +86,10 @@ export class ChromaExtractor {
       }
     }
     const energy = Math.sqrt(sumSq);
-    if (energy < this.opts.noiseFloor || !Number.isFinite(maxDb)) return { chroma: null, energy, peakDb: maxDb };
+    if (energy < this.opts.noiseFloor || !Number.isFinite(maxDb)) return { chroma: null, bass: null, energy, peakDb: maxDb };
 
     const chroma = new Float32Array(12);
+    const bass = new Float32Array(12);
     const minDb = Math.max(this.opts.minPeakDb, maxDb - this.opts.peakRangeDb);
     for (let k = lo; k <= hi; k++) {
       const b = db[k];
@@ -91,9 +101,10 @@ export class ChromaExtractor {
       const f = (k + p) * this.binHz;
       const pc = ((Math.round(hzToMidi(f)) % 12) + 12) % 12;
       chroma[pc] += mag[k] * frequencyWeight(f);
+      if (f < this.opts.bassMaxHz) bass[pc] += mag[k];
     }
-    if (!normalizeInPlace(chroma)) return { chroma: null, energy, peakDb: maxDb };
-    return { chroma, energy, peakDb: maxDb };
+    if (!normalizeInPlace(chroma)) return { chroma: null, bass: null, energy, peakDb: maxDb };
+    return { chroma, bass: normalizeInPlace(bass) ? bass : null, energy, peakDb: maxDb };
   }
 }
 

@@ -44,6 +44,7 @@ export class ChartView {
   /** Highlight position `index`; `next` gets a subtle outline. `smooth` scrolls with animation. */
   setPosition(index: number, smooth = true): void {
     if (index === this.current) return;
+    this.pills[this.current]?.style.removeProperty('--progress');
     this.pills.forEach((p, i) => {
       p.classList.toggle('current', i === index);
       p.classList.toggle('next', i === index + 1);
@@ -61,6 +62,12 @@ export class ChartView {
       this.currentLine = line;
       this.scrollToLine(line, smooth);
     }
+  }
+
+  /** 0..1 expected progress through the current chord (drawn under the pill). */
+  setProgress(p: number): void {
+    const pill = this.pills[this.current];
+    if (pill) pill.style.setProperty('--progress', p.toFixed(3));
   }
 
   /** Mark positions the tracker is unsure about (e.g. while re-locating). */
