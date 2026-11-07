@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "deploy": "npm run build && npx wrangler pages deploy dist --project-name chordfollow",
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name chordfollow --branch main",
     "e2e": "npm run build && node scripts/e2e.cjs"
   },
   "devDependencies": {

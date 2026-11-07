@@ -53,7 +53,7 @@ Cloudflare Pages (free, HTTPS included, which the mic needs).
 ```bash
 npx wrangler login
 npx wrangler pages project create chordfollow --production-branch main   # first time only
-npm run deploy     # = npm run build && wrangler pages deploy dist --project-name chordfollow
+npm run deploy     # = npm run build && wrangler pages deploy dist --project-name chordfollow --branch main
 ```
 
 Wrangler prints the URL (e.g. `https://chordfollow.pages.dev`). Put it at the top of this README.
