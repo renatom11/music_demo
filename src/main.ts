@@ -8,6 +8,7 @@ import { h } from './ui/dom';
 import { DebugPanel } from './ui/debug';
 import { Mic, MicError } from './audio/mic';
 import { ChromaExtractor, ChromaSmoother, polyphony } from './audio/chroma';
+import { rankAll, scoreChord } from './audio/chords';
 
 const app = document.getElementById('app')!;
 
@@ -51,7 +52,16 @@ function showPlayer(song: Song): void {
     const frame = extractor!.compute(mic.getFrame());
     const chroma = smoother.push(frame.chroma);
     micDot.classList.toggle('on', frame.chroma !== null);
-    debug.update({ chroma, levelDb: mic.getLevelDb(), polyphony: chroma ? polyphony(chroma) : 0 });
+    const cur = flat.chords[index]?.chord;
+    const nxt = flat.chords[index + 1]?.chord;
+    debug.update({
+      chroma,
+      levelDb: mic.getLevelDb(),
+      polyphony: chroma ? polyphony(chroma) : 0,
+      top: chroma ? rankAll(chroma, 3) : [],
+      current: cur && chroma ? { name: cur, score: scoreChord(chroma, cur) } : undefined,
+      next: nxt && chroma ? { name: nxt, score: scoreChord(chroma, nxt) } : undefined,
+    });
   };
   const stop = () => {
     cancelAnimationFrame(raf);
