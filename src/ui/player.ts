@@ -2,6 +2,7 @@ import { Mic, MicError } from '../audio/mic';
 import { Follower, type FollowerChord } from '../audio/follower';
 import { ChordPipeline } from '../audio/pipeline';
 import { rankAll } from '../audio/chords';
+import { detectNotes } from '../audio/notes';
 import { flattenSong, type FlatSong } from '../song/flatten';
 import { DEFAULT_BPM, type Song } from '../song/types';
 import { ChartView } from './chart';
@@ -32,7 +33,8 @@ export class Player {
   private mic = new Mic();
   private chart: ChartView;
   private controls: Controls;
-  private debug = new DebugPanel();
+  private debug = new DebugPanel(() => void this.record());
+  private recording = false;
   private micDot = h('div.mic-dot', { title: 'Microphone' });
   private sectionEl = h('div.section');
   private toastEl = h('div.toast', { role: 'status', 'aria-live': 'polite' });
@@ -207,7 +209,14 @@ export class Player {
     this.chart.setUncertain(r.confidence < 0.35);
     this.chart.setProgress(r.progress);
     if (this.debug.visible) {
+      const frame = this.mic.getFrame();
       this.debug.update({
+        expected: this.flat.chords[r.index]?.chord,
+        notes: detectNotes(r.peaks),
+        spectrum: frame,
+        binHz: this.mic.sampleRate / this.mic.fftSize,
+        sampleRate: this.mic.sampleRate,
+        silent: r.silent,
         chroma: r.chroma,
         levelDb: this.mic.getLevelDb(),
         polyphony: r.polyphony,
@@ -222,6 +231,47 @@ export class Player {
       });
     }
   };
+
+  /** Record a short clip of the raw mic input and download it (for tuning/troubleshooting). */
+  private async record(): Promise<void> {
+    const stream = this.mic.mediaStream;
+    const btn = this.debug.recordBtn;
+    if (!stream) { this.toast('Tap Start listening first'); return; }
+    if (this.recording || typeof MediaRecorder === 'undefined') {
+      if (typeof MediaRecorder === 'undefined') this.toast('Recording is not supported in this browser');
+      return;
+    }
+    const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported?.(t));
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    } catch (e) {
+      this.toast(`Could not record: ${e}`);
+      return;
+    }
+    this.recording = true;
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    const done = new Promise<void>((res) => { rec.onstop = () => res(); });
+    rec.start();
+    for (let left = 15; left > 0 && this.mic.running; left--) {
+      btn.textContent = `■ Recording… ${left}s`;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    if (rec.state !== 'inactive') rec.stop();
+    await done;
+    this.recording = false;
+    btn.textContent = '● Record 15 s clip';
+    const mime = rec.mimeType || type || 'audio/webm';
+    const ext = mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm';
+    const url = URL.createObjectURL(new Blob(chunks, { type: mime }));
+    const a = h('a', { href: url, download: `chordfollow-${this.song.id}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${ext}` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    this.toast('Recording saved');
+  }
 
   private showDone(): void {
     this.overlay?.remove();

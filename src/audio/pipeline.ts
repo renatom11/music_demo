@@ -2,7 +2,7 @@
  * Per-frame glue: analyser frame → chroma (+EMA) → onsets → follower.
  * Shared by the app and the tests so both run exactly the same path.
  */
-import { ChromaExtractor, ChromaSmoother, DEFAULT_CHROMA_OPTIONS } from './chroma';
+import { ChromaExtractor, ChromaSmoother, DEFAULT_CHROMA_OPTIONS, type Peak } from './chroma';
 import { Follower, type FollowerFrame } from './follower';
 import { DEFAULT_ONSET_OPTIONS, OnsetDetector, type Onset } from './onset';
 
@@ -10,6 +10,10 @@ export type PipelineFrame = FollowerFrame & {
   raw: Float32Array | null;
   chroma: Float32Array | null;
   energy: number;
+  /** spectral peaks of this frame, strongest first (also when silent) */
+  peaks: Peak[];
+  /** below the silence floor — ignored by the tracker */
+  silent: boolean;
   onset: Onset | null;
   lastOnset: Onset | null;
 };
@@ -59,7 +63,9 @@ export class ChordPipeline {
     }
     if (onset && c.chroma) this.pendingOnset = onset;
     const f = this.follower.update(chroma, now, chroma ? bass : null);
-    return { ...f, raw: c.chroma, chroma, energy: c.energy, onset, lastOnset: this.onsets.lastOnset };
+    return {
+      ...f, raw: c.chroma, chroma, energy: c.energy, peaks: c.peaks, silent: c.silent, onset, lastOnset: this.onsets.lastOnset,
+    };
   }
 }
 

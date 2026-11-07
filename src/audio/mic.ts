@@ -53,6 +53,11 @@ export class Mic {
     return this.ctx !== null && this.analyser !== null;
   }
 
+  /** The live microphone stream (for recording a diagnostic clip). */
+  get mediaStream(): MediaStream | null {
+    return this.stream;
+  }
+
   get sampleRate(): number {
     return this.ctx?.sampleRate ?? 48000;
   }

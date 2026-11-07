@@ -136,3 +136,24 @@ textarea.song-text { width: 100%; min-height: 50vh; font: 15px/1.5 ui-monospace,
   .diagrams { min-height: 0; }
   .diagram.small { display: none; }
 }
+
+/* ---------- "What I hear" ---------- */
+:root { --good: #23a047; --off: #d9a400; --wrong: #d64541; }
+@media (prefers-color-scheme: dark) { :root { --good: #3cc463; --off: #f2c230; --wrong: #ef5b57; } }
+.debug .pre { white-space: pre; }
+.hearing { display: flex; flex-direction: column; gap: 6px; font-family: system-ui, -apple-system, sans-serif; }
+.hearing .expected { font-size: 14px; }
+.heard { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; align-items: center; }
+.note-chip { display: inline-flex; gap: 4px; align-items: baseline; padding: 4px 9px; border-radius: 999px; font: 13px/1.2 ui-monospace, Menlo, monospace; border: 2px solid; }
+.note-chip b { font-size: 15px; }
+.note-chip.good { border-color: var(--good); background: color-mix(in srgb, var(--good) 22%, transparent); }
+.note-chip.off { border-color: var(--off); background: color-mix(in srgb, var(--off) 22%, transparent); }
+.note-chip.wrong { border-color: var(--wrong); background: color-mix(in srgb, var(--wrong) 18%, transparent); }
+.note-chip .cents { font-size: 11px; opacity: 0.85; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend .note-chip { font-size: 10px; padding: 1px 7px; border-width: 1px; }
+canvas.spectrum { width: 100%; height: 90px; display: block; background: var(--surface-2); border-radius: 8px; }
+.mic-status { color: var(--muted); }
+.mic-status.warn { color: var(--wrong); }
+.btn.small { padding: 5px 12px; font-size: 13px; }
+.debug .row .hint { font-family: system-ui, sans-serif; font-size: 11px; flex: 1; min-width: 140px; }

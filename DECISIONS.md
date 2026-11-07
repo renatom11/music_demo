@@ -48,6 +48,13 @@ The owner said this shouldn't be out of scope. v1 handles it the way that matter
 - **iOS:** the `AudioContext` is created and resumed synchronously inside the Start tap, before `getUserMedia` is awaited. The analyser goes through a muted gain to the destination, because some Safari versions don't process nodes that aren't connected.
 - **Sensitivity slider** (0–1, default 0.5): scales emission sharpness, hold time, switch threshold, onset `k`, the minimum flux and the silence floor together.
 
+## "What I hear" troubleshooting view
+
+- Notes come from the same interpolated spectral peaks as the chroma. Peaks that sit on an overtone (2–6×, within 30¢) of a lower peak are folded into it, so a G strum reads "G2 B2 D3", not a dozen partials. Octave-doubled strings fold into the lower string; that's unavoidable from the spectrum alone.
+- Grading is against the chord the chart currently highlights: green = chord tone within ±15¢, yellow = chord tone further out (up to ±50¢, after which it rounds to the neighbouring note and turns red), red = not a chord tone.
+- Peaks are reported even when the frame is below the silence floor, so the panel can say "too quiet — ignored as silence" instead of looking dead.
+- The clip recorder uses MediaRecorder on the raw mic stream (webm/opus, or m4a on iOS).
+
 ## Song format
 
 - `# label` at the end of a chord line adds a user label (never lyrics). Only a `#` after whitespace counts, so `F#m` still parses.

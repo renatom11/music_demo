@@ -25,7 +25,13 @@ Details and trade-offs are in [DECISIONS.md](DECISIONS.md).
 2. Tap **Start listening** and allow the microphone.
 3. Play. Lean the phone against something near the guitar.
 4. Use the **Sensitivity** slider: left = only clear, loud playing; right = quiet playing and fast reactions.
-5. **⚙** opens the debug panel: live chroma, top 3 chords, current vs next score, input level, the tracker's belief over the song, and tempo.
+5. **⚙** opens the troubleshooting panel:
+   - **"Should hear"**: the chord you should be playing and its notes.
+   - **Hearing**: the notes the mic picks out right now, each with its frequency and tuning (cents):
+     🟢 a note of the chord, in tune · 🟡 a note of the chord but more than 15¢ out of tune · 🔴 not in the chord.
+   - **Live spectrum** (70–1400 Hz) with the chord's notes marked, plus the mic's sample rate and a warning when your playing is too quiet and gets treated as silence.
+   - Chroma bars, top 3 chords, current vs next score, input level, the tracker's belief over the song, and tempo.
+   - **● Record 15 s clip** downloads what the mic hears, so a problem can be reproduced and tuned.
 6. Tap a diagram to switch between full and easy shapes.
 
 ## Run locally

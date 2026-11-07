@@ -42,7 +42,16 @@ export type ChromaFrame = {
   energy: number;
   /** loudest peak in dB */
   peakDb: number;
+  /**
+   * Spectral peaks (interpolated frequency), strongest first. Reported even
+   * when the frame is below the silence floor, for the live "what I hear" view.
+   */
+  peaks: Peak[];
+  /** true when the frame was treated as silence (chroma === null) */
+  silent: boolean;
 };
+
+export type Peak = { freq: number; db: number; mag: number };
 
 /** Spectral weighting: low octaves a bit higher (roots live there), above ~1 kHz lower (voice/harmonics). */
 export function frequencyWeight(f: number): number {
@@ -86,10 +95,11 @@ export class ChromaExtractor {
       }
     }
     const energy = Math.sqrt(sumSq);
-    if (energy < this.opts.noiseFloor || !Number.isFinite(maxDb)) return { chroma: null, bass: null, energy, peakDb: maxDb };
+    if (!Number.isFinite(maxDb)) return { chroma: null, bass: null, energy, peakDb: maxDb, peaks: [], silent: true };
 
     const chroma = new Float32Array(12);
     const bass = new Float32Array(12);
+    const peaks: Peak[] = [];
     const minDb = Math.max(this.opts.minPeakDb, maxDb - this.opts.peakRangeDb);
     for (let k = lo; k <= hi; k++) {
       const b = db[k];
@@ -99,12 +109,15 @@ export class ChromaExtractor {
       const denom = a - 2 * b + c;
       const p = denom < 0 ? Math.max(-0.5, Math.min(0.5, (0.5 * (a - c)) / denom)) : 0;
       const f = (k + p) * this.binHz;
+      peaks.push({ freq: f, db: b - 0.25 * (a - c) * p, mag: mag[k] });
       const pc = ((Math.round(hzToMidi(f)) % 12) + 12) % 12;
       chroma[pc] += mag[k] * frequencyWeight(f);
       if (f < this.opts.bassMaxHz) bass[pc] += mag[k];
     }
-    if (!normalizeInPlace(chroma)) return { chroma: null, bass: null, energy, peakDb: maxDb };
-    return { chroma, bass: normalizeInPlace(bass) ? bass : null, energy, peakDb: maxDb };
+    peaks.sort((x, y) => y.mag - x.mag);
+    if (energy < this.opts.noiseFloor || !normalizeInPlace(chroma))
+      return { chroma: null, bass: null, energy, peakDb: maxDb, peaks, silent: true };
+    return { chroma, bass: normalizeInPlace(bass) ? bass : null, energy, peakDb: maxDb, peaks, silent: false };
   }
 }
 
