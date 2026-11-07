@@ -14,6 +14,8 @@ export type PipelineFrame = FollowerFrame & {
   peaks: Peak[];
   /** below the silence floor — ignored by the tracker */
   silent: boolean;
+  /** still learning the room's background sound (first ~1.2 s) */
+  learning: boolean;
   onset: Onset | null;
   lastOnset: Onset | null;
 };
@@ -45,6 +47,7 @@ export class ChordPipeline {
   reset(): void {
     this.smoother.reset();
     this.bassSmoother.reset();
+    this.chroma.resetNoise();
     this.onsets.reset();
     this.pendingOnset = null;
   }
@@ -64,7 +67,7 @@ export class ChordPipeline {
     if (onset && c.chroma) this.pendingOnset = onset;
     const f = this.follower.update(chroma, now, chroma ? bass : null);
     return {
-      ...f, raw: c.chroma, chroma, energy: c.energy, peaks: c.peaks, silent: c.silent, onset, lastOnset: this.onsets.lastOnset,
+      ...f, raw: c.chroma, chroma, energy: c.energy, peaks: c.peaks, silent: c.silent, learning: !this.chroma.ready, onset, lastOnset: this.onsets.lastOnset,
     };
   }
 }

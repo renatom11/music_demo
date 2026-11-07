@@ -9,7 +9,7 @@ const top = (c: Float32Array, n: number) =>
   [...c].map((v, i) => [v, i] as const).sort((a, b) => b[0] - a[0]).slice(0, n).map(([, i]) => NOTE_NAMES[i]);
 
 describe('chroma', () => {
-  const ex = new ChromaExtractor(SR, FFT);
+  const ex = new ChromaExtractor(SR, FFT, { background: false });
 
   it('G major strum peaks on G, B, D', () => {
     const { chroma } = ex.compute(strumFrame('G'));

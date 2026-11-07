@@ -25,6 +25,10 @@ export type DebugInfo = {
   sampleRate?: number;
   /** frame was below the silence floor (the tracker ignored it) */
   silent?: boolean;
+  /** still learning the room's background sound */
+  learning?: boolean;
+  /** steady background tones being ignored (hum etc.) */
+  background?: { freq: number; db: number }[];
 };
 
 const SPEC_MIN_HZ = 70;
@@ -46,6 +50,7 @@ export class DebugPanel {
   private expectedEl: HTMLElement;
   private notesEl: HTMLElement;
   private statusEl: HTMLElement;
+  private bgEl: HTMLElement;
   private canvas: HTMLCanvasElement;
   readonly recordBtn: HTMLButtonElement;
 
@@ -65,6 +70,7 @@ export class DebugPanel {
     this.expectedEl = h('div.expected');
     this.notesEl = h('div.heard', { 'aria-live': 'off' });
     this.statusEl = h('div.full.mic-status');
+    this.bgEl = h('div.full.background', { title: 'Steady sounds (hum, fans, electronics) that are filtered out' });
     this.canvas = h('canvas.spectrum', { height: 90, 'aria-label': 'Live spectrum' });
     this.recordBtn = h('button.btn.small', { type: 'button', onclick: onRecord }, '● Record 15 s clip');
     this.el = h(
@@ -85,6 +91,7 @@ export class DebugPanel {
       ),
       h('div.full', {}, this.canvas),
       this.statusEl,
+      this.bgEl,
       chroma,
       h('div.chroma-labels', {}, ...NOTE_NAMES.map((n) => h('span', { text: n }))),
       h('div', {}, h('div.k', { text: 'Top chords' }), this.topEl),
@@ -159,13 +166,20 @@ export class DebugPanel {
     }
     const sr = info.sampleRate ? `${(info.sampleRate / 1000).toFixed(1)} kHz` : '—';
     const res = info.binHz ? ` · ${info.binHz.toFixed(1)} Hz/bin` : '';
-    const state = info.silent
+    const state = info.learning
+      ? 'learning the room’s background sound… (keep quiet for a second)'
+      : info.silent
       ? notes.length
         ? '⚠ too quiet — ignored as silence (raise Sensitivity or move closer)'
         : 'silence'
       : 'listening';
     this.statusEl.textContent = `Mic ${sr}${res} · ${state}`;
-    this.statusEl.classList.toggle('warn', !!info.silent && notes.length > 0);
+    this.statusEl.classList.toggle('warn', !info.learning && !!info.silent && notes.length > 0);
+    const bg = info.background ?? [];
+    this.bgEl.replaceChildren(
+      h('span.k', { text: bg.length ? 'Ignoring background hum: ' : 'No steady background hum' }),
+      ...bg.map((t) => h('span.note-chip.bg', { text: `${t.freq.toFixed(0)} Hz` })),
+    );
   }
 
   private drawSpectrum(info: DebugInfo): void {

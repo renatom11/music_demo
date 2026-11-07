@@ -13,8 +13,9 @@ const { chromium } = require('playwright');
 
 (async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'chordfollow-e2e-'));
+  // E2E_HUM=0.005 E2E_GUITAR=0.015 npm run e2e  → quiet guitar in a humming room
   const wav = path.join(dir, 'being-alive.wav');
-  execFileSync('npx', ['vite-node', 'scripts/fake-mic-wav.ts', wav], { stdio: 'inherit' });
+  execFileSync('npx', ['vite-node', 'scripts/fake-mic-wav.ts', wav, process.env.E2E_HUM ?? '0', process.env.E2E_GUITAR ?? '0.06'], { stdio: 'inherit' });
   const server = spawn('npx', ['vite', 'preview', '--port', '4173', '--strictPort'], { stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 2500));
   let failed = false;

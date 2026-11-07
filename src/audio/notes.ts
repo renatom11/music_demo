@@ -37,7 +37,7 @@ export type NoteOptions = {
   maxHarmonic: number;
 };
 
-export const DEFAULT_NOTE_OPTIONS: NoteOptions = { rangeDb: 30, max: 8, harmonicCents: 30, maxHarmonic: 6 };
+export const DEFAULT_NOTE_OPTIONS: NoteOptions = { rangeDb: 36, max: 8, harmonicCents: 30, maxHarmonic: 6 };
 
 /** |cents| up to this is "in tune" (green); beyond it is out of tune (yellow). */
 export const IN_TUNE_CENTS = 15;

@@ -190,7 +190,7 @@ export class Player {
     this.mic.stop();
     this.follower.stop();
     this.pipeline = null;
-    this.micDot.classList.remove('on');
+    this.micDot.classList.remove('on', 'learning');
     this.controls.setListening(false);
     this.onListening(false);
   }
@@ -206,6 +206,7 @@ export class Player {
     this.lastProcess = t;
     const r = this.pipeline.process(this.mic.getFrame(), t);
     this.micDot.classList.toggle('on', r.raw !== null);
+    this.micDot.classList.toggle('learning', r.learning);
     this.chart.setUncertain(r.confidence < 0.35);
     this.chart.setProgress(r.progress);
     if (this.debug.visible) {
@@ -217,6 +218,8 @@ export class Player {
         binHz: this.mic.sampleRate / this.mic.fftSize,
         sampleRate: this.mic.sampleRate,
         silent: r.silent,
+        learning: r.learning,
+        background: this.pipeline.chroma.backgroundTones(),
         chroma: r.chroma,
         levelDb: this.mic.getLevelDb(),
         polyphony: r.polyphony,

@@ -30,6 +30,7 @@ Details and trade-offs are in [DECISIONS.md](DECISIONS.md).
    - **Hearing**: the notes the mic picks out right now, each with its frequency and tuning (cents):
      🟢 a note of the chord, in tune · 🟡 a note of the chord but more than 15¢ out of tune · 🔴 not in the chord.
    - **Live spectrum** (70–1400 Hz) with the chord's notes marked, plus the mic's sample rate and a warning when your playing is too quiet and gets treated as silence.
+   - **Ignoring background hum:** steady tones the app has learned to filter out. Electrical hum at 120/180/240/300 Hz otherwise sounds like a B minor chord. The first second after Start (amber mic dot) is spent learning the room, so stay quiet for a moment.
    - Chroma bars, top 3 chords, current vs next score, input level, the tracker's belief over the song, and tempo.
    - **● Record 15 s clip** downloads what the mic hears, so a problem can be reproduced and tuned.
 6. Tap a diagram to switch between full and easy shapes.

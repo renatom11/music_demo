@@ -5,7 +5,7 @@ import {
 import { ChromaExtractor } from '../src/audio/chroma';
 import { FFT, SR, strumFrame } from './helpers/synthetic';
 
-const ex = new ChromaExtractor(SR, FFT);
+const ex = new ChromaExtractor(SR, FFT, { background: false });
 
 describe('chord name parser', () => {
   it.each([

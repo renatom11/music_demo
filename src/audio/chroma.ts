@@ -22,6 +22,17 @@ export type ChromaOptions = {
    * chroma is a voice-resistant second opinion on the chord.
    */
   bassMaxHz: number;
+  /**
+   * Background removal. A frequency bin whose level stayed within a
+   * `steadyDb` range over the last `steadyFrames` frames (~1.2 s) is a steady
+   * background tone and is ignored — mains hum at 120/180/240/300 Hz (which
+   * reads as B minor!), whining electronics, fridges. Plucked strings decay
+   * faster than that, so they never qualify.
+   */
+  steadyDb: number;
+  steadyFrames: number;
+  /** turn background learning (and its warm-up) off — for analysing single frames */
+  background: boolean;
 };
 
 export const DEFAULT_CHROMA_OPTIONS: ChromaOptions = {
@@ -31,6 +42,9 @@ export const DEFAULT_CHROMA_OPTIONS: ChromaOptions = {
   peakRangeDb: 45,
   minPeakDb: -95,
   bassMaxHz: 200,
+  steadyDb: 3,
+  steadyFrames: 30,
+  background: true,
 };
 
 export type ChromaFrame = {
@@ -51,6 +65,9 @@ export type ChromaFrame = {
   silent: boolean;
 };
 
+/** A steady background tone the extractor has learned to ignore. */
+export type BackgroundTone = { freq: number; db: number };
+
 export type Peak = { freq: number; db: number; mag: number };
 
 /** Spectral weighting: low octaves a bit higher (roots live there), above ~1 kHz lower (voice/harmonics). */
@@ -68,6 +85,16 @@ export class ChromaExtractor {
   private hi: number;
   private binHz: number;
   private mag: Float32Array;
+  private clean: Float32Array;
+  private cleanDb: Float32Array;
+  /** ring buffer of recent per-bin levels (dB), [frame][bin - lo + 1] */
+  private hist: Float32Array;
+  private histPos = 0;
+  private histFilled = 0;
+  private steady: Uint8Array;
+  private lastDb: Float32Array;
+  /** learned background magnitude per bin (kept, slowly fading, while you play over it) */
+  private profile: Float32Array;
 
   constructor(readonly sampleRate: number, readonly fftSize: number, opts: Partial<ChromaOptions> = {}) {
     this.opts = { ...DEFAULT_CHROMA_OPTIONS, ...opts };
@@ -75,6 +102,71 @@ export class ChromaExtractor {
     this.lo = Math.max(1, Math.ceil(this.opts.minHz / this.binHz));
     this.hi = Math.min(fftSize / 2 - 2, Math.floor(this.opts.maxHz / this.binHz));
     this.mag = new Float32Array(fftSize / 2);
+    this.clean = new Float32Array(fftSize / 2);
+    this.cleanDb = new Float32Array(fftSize / 2);
+    const n = this.hi - this.lo + 3;
+    this.hist = new Float32Array(n * this.opts.steadyFrames);
+    this.steady = new Uint8Array(fftSize / 2);
+    this.lastDb = new Float32Array(fftSize / 2).fill(-200);
+    this.profile = new Float32Array(fftSize / 2);
+  }
+
+  /** False during the first ~1.2 s while the room's background is being learned. */
+  get ready(): boolean {
+    return !this.opts.background || this.histFilled >= this.opts.steadyFrames;
+  }
+
+  /** Forget the learned background (e.g. when listening restarts somewhere else). */
+  resetNoise(): void {
+    this.histPos = 0;
+    this.histFilled = 0;
+    this.steady.fill(0);
+    this.profile.fill(0);
+  }
+
+  /** Record this frame's levels and mark bins that have been steady for the whole window. */
+  private trackBackground(db: Float32Array): void {
+    const { lo, hi, hist, steady } = this;
+    const n = hi - lo + 3;
+    const N = this.opts.steadyFrames;
+    const base = this.histPos * n;
+    for (let k = lo - 1; k <= hi + 1; k++) {
+      const d = Number.isFinite(db[k]) ? Math.max(-200, db[k]) : -200;
+      hist[base + k - lo + 1] = d;
+    }
+    this.histPos = (this.histPos + 1) % N;
+    this.histFilled = Math.min(N, this.histFilled + 1);
+    if (this.histFilled < N) return;
+    const range = this.opts.steadyDb;
+    for (let k = lo - 1; k <= hi + 1; k++) {
+      const j = k - lo + 1;
+      let mn = Infinity, mx = -Infinity;
+      for (let f = 0; f < N; f++) {
+        const v = hist[f * n + j];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+        if (mx - mn >= range) break;
+      }
+      steady[k] = mx - mn < range && mx > -190 ? 1 : 0;
+    }
+  }
+
+  /**
+   * The strongest steady tones in the learned background (≥18 dB above the
+   * typical background level), for the troubleshooting view.
+   */
+  backgroundTones(max = 5): BackgroundTone[] {
+    const { lo, hi, lastDb, steady } = this;
+    const out: BackgroundTone[] = [];
+    for (let k = lo; k <= hi; k++) {
+      if (!steady[k] || lastDb[k] < -95) continue;
+      if (lastDb[k] > lastDb[k - 1] && lastDb[k] >= lastDb[k + 1]) {
+        // A real tone stands well clear of its neighbourhood.
+        const around = Math.min(lastDb[Math.max(lo, k - 8)], lastDb[Math.min(hi, k + 8)]);
+        if (lastDb[k] - around >= 12) out.push({ freq: k * this.binHz, db: lastDb[k] });
+      }
+    }
+    return out.sort((a, b) => b.db - a.db).slice(0, max).sort((a, b) => a.freq - b.freq);
   }
 
   setNoiseFloor(v: number): void {
@@ -82,16 +174,26 @@ export class ChromaExtractor {
   }
 
   compute(db: Float32Array): ChromaFrame {
-    const { lo, hi, mag } = this;
+    const { lo, hi, mag, clean, steady, lastDb, profile } = this;
+    if (this.opts.background) this.trackBackground(db);
     let sumSq = 0;
     let maxDb = -Infinity;
+    const cdb = this.cleanDb;
     for (let k = lo - 1; k <= hi + 1; k++) {
-      const d = db[k];
-      const m = Number.isFinite(d) ? Math.pow(10, d / 20) : 0;
+      const d = Number.isFinite(db[k]) ? Math.max(-200, db[k]) : -200;
+      lastDb[k] = d;
+      const m = d > -200 ? Math.pow(10, d / 20) : 0;
       mag[k] = m;
+      // Learn the background while a bin is steady; remember it (fading over
+      // ~20 s) once you play over it, and subtract it with a ~4 dB margin.
+      if (steady[k]) profile[k] = m;
+      else profile[k] *= 0.998;
+      const c = steady[k] ? 0 : Math.max(0, m - 1.6 * profile[k]);
+      clean[k] = c;
+      cdb[k] = c > 0 ? 20 * Math.log10(c) : -200;
       if (k >= lo && k <= hi) {
-        sumSq += m * m;
-        if (d > maxDb) maxDb = d;
+        sumSq += c * c;
+        if (c > 0 && d > maxDb) maxDb = d;
       }
     }
     const energy = Math.sqrt(sumSq);
@@ -102,26 +204,24 @@ export class ChromaExtractor {
     const peaks: Peak[] = [];
     const minDb = Math.max(this.opts.minPeakDb, maxDb - this.opts.peakRangeDb);
     for (let k = lo; k <= hi; k++) {
-      const b = db[k];
-      if (!(b > minDb) || !(mag[k] > mag[k - 1]) || !(mag[k] >= mag[k + 1])) continue;
-      const a = clampDb(db[k - 1]);
-      const c = clampDb(db[k + 1]);
+      const b = cdb[k];
+      if (!(b > minDb) || !(clean[k] > clean[k - 1]) || !(clean[k] >= clean[k + 1])) continue;
+      const a = cdb[k - 1];
+      const c = cdb[k + 1];
       const denom = a - 2 * b + c;
       const p = denom < 0 ? Math.max(-0.5, Math.min(0.5, (0.5 * (a - c)) / denom)) : 0;
       const f = (k + p) * this.binHz;
-      peaks.push({ freq: f, db: b - 0.25 * (a - c) * p, mag: mag[k] });
+      peaks.push({ freq: f, db: b - 0.25 * (a - c) * p, mag: clean[k] });
       const pc = ((Math.round(hzToMidi(f)) % 12) + 12) % 12;
-      chroma[pc] += mag[k] * frequencyWeight(f);
-      if (f < this.opts.bassMaxHz) bass[pc] += mag[k];
+      chroma[pc] += clean[k] * frequencyWeight(f);
+      if (f < this.opts.bassMaxHz) bass[pc] += clean[k];
     }
     peaks.sort((x, y) => y.mag - x.mag);
-    if (energy < this.opts.noiseFloor || !normalizeInPlace(chroma))
+    if (!this.ready || energy < this.opts.noiseFloor || !normalizeInPlace(chroma))
       return { chroma: null, bass: null, energy, peakDb: maxDb, peaks, silent: true };
     return { chroma, bass: normalizeInPlace(bass) ? bass : null, energy, peakDb: maxDb, peaks, silent: false };
   }
 }
-
-const clampDb = (d: number): number => (Number.isFinite(d) ? d : -200);
 
 export function normalizeInPlace(v: Float32Array): boolean {
   let s = 0;

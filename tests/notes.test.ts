@@ -5,7 +5,7 @@ import { renderNotes } from '../src/audio/synth';
 import { frameAt } from './helpers/analyser';
 import { FFT, SR, strumFrame } from './helpers/synthetic';
 
-const ex = new ChromaExtractor(SR, FFT);
+const ex = new ChromaExtractor(SR, FFT, { background: false });
 const notesOf = (db: Float32Array) => detectNotes(ex.compute(db).peaks);
 
 describe('note naming', () => {

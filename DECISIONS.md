@@ -48,9 +48,23 @@ The owner said this shouldn't be out of scope. v1 handles it the way that matter
 - **iOS:** the `AudioContext` is created and resumed synchronously inside the Start tap, before `getUserMedia` is awaited. The analyser goes through a muted gain to the destination, because some Safari versions don't process nodes that aren't connected.
 - **Sensitivity slider** (0–1, default 0.5): scales emission sharpness, hold time, switch threshold, onset `k`, the minimum flux and the silence floor together.
 
+## Background hum removal (added after the first real-guitar test)
+
+Reported symptom: "it hears B minor really well, but not E minor or G". Mains hum on a 60 Hz grid shows up at 120, 180, 240, 300 and 360 Hz, which are B2, F#3, B3, D4 and F#4, each 40–50¢ off. That is a **B minor chord**. Simulated hum alone ranks Bm first (0.92), and quiet Em/G/C/D strums drift toward Bm as they decay. The tell-tale sign in the note view is a set of notes sitting ~40–50¢ out of tune.
+
+Fix, in `chroma.ts`:
+- **Steady-tone detection:** each frequency bin keeps its last ~1.2 s of levels (30 frames). A bin that stayed within 3 dB the whole time is background. Plucked strings decay faster than ~2.5 dB/s, so they never qualify. A slower subtraction that learned anything sustained also removed held guitar chords and was rejected.
+- **Learned profile:** once a bin is background, its level is remembered (fading over ~20 s) and subtracted with a ~4 dB margin while you play over it, so hum doesn't leak back in during a strum.
+- **Warm-up:** the first ~1.2 s after Start are spent learning the room. The mic dot is amber and frames count as silence. Without this, Start → hum → "Bm" made the follower jump to the Bm position before you played.
+- **Chord clock from the first strum:** after Start or a manual jump, the current chord's duration is timed from your first attack, not from the tap.
+- The ⚙ panel lists the background tones being ignored ("Ignoring background hum: 120 Hz 180 Hz …").
+
+Tests: hum alone → Bm without the filter, silence with it; quiet Em/G/C/D/Bm over hum are recognised correctly; a long-ringing Em is not filtered; the follower makes exactly 8 clean advances over three hum levels. Plus a real-browser e2e (`E2E_HUM=0.005 E2E_GUITAR=0.015 npm run e2e`).
+
 ## "What I hear" troubleshooting view
 
 - Notes come from the same interpolated spectral peaks as the chroma. Peaks that sit on an overtone (2–6×, within 30¢) of a lower peak are folded into it, so a G strum reads "G2 B2 D3", not a dozen partials. Octave-doubled strings fold into the lower string; that's unavoidable from the spectrum alone.
+- Showing fewer chips than strings is expected: an octave-doubled string (E2 + E3 + E4 in Em) folds into the lowest one, so Em shows as E, B, G.
 - Grading is against the chord the chart currently highlights: green = chord tone within ±15¢, yellow = chord tone further out (up to ±50¢, after which it rounds to the neighbouring note and turns red), red = not a chord tone.
 - Peaks are reported even when the frame is below the silence floor, so the panel can say "too quiet — ignored as silence" instead of looking dead.
 - The clip recorder uses MediaRecorder on the raw mic stream (webm/opus, or m4a on iOS).

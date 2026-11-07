@@ -10,7 +10,9 @@ describe('ChordPipeline', () => {
     const f = new Follower(chordsOf(['G', 'C']));
     const p = new ChordPipeline(f, SR, FFT);
     f.start(0);
-    const frames = [...framesOf(performance([{ chord: 'G', at: 0.1 }], 0.8), SR, FFT, 40)].map((x) => p.process(x.db, x.time));
+    const frames = [...framesOf(performance([{ chord: 'G', at: 1.4 }], 2.2), SR, FFT, 40)].map((x) => p.process(x.db, x.time));
+    expect(frames[5].learning).toBe(true);
+    expect(frames[frames.length - 1].learning).toBe(false);
     expect(frames.some((r) => r.onset)).toBe(true);
     const last = frames[frames.length - 1];
     expect(last.chroma).not.toBeNull();

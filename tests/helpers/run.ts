@@ -6,6 +6,13 @@ import { FFT, SR } from './synthetic';
 export const chordsOf = (names: string[], beats = 4): FollowerChord[] =>
   names.map((chord, i) => ({ chord, beats, lineIndex: Math.floor(i / 2), lineStart: i % 2 === 0, sectionStart: i === 0 }));
 
+/**
+ * Like the app: Start is tapped `LEAD_MS` before the music begins (the first
+ * ~1.2 s are spent learning the room's background). Reported times are
+ * relative to the start of the music.
+ */
+export const LEAD_MS = 1500;
+
 export function run(
   chords: FollowerChord[],
   signal: Float32Array,
@@ -18,12 +25,15 @@ export function run(
   let t = 0;
   follower.on('position', (e) => { if (e.kind !== 'manual') events.push({ ...e, time: t }); });
   follower.on('done', () => { done = true; });
-  follower.start(0, opts.startAt ?? 0);
+  follower.start(-LEAD_MS, opts.startAt ?? 0);
   const trace: { time: number; index: number; best: number; conf: number; onset: boolean }[] = [];
-  for (const f of framesOf(signal, SR, FFT, 40)) {
-    t = f.time;
-    const r = pipe.process(f.db, f.time);
-    trace.push({ time: f.time, index: r.index, best: r.best, conf: r.confidence, onset: !!r.onset });
+  const lead = new Float32Array(Math.round((LEAD_MS / 1000) * SR) + signal.length);
+  lead.set(signal, lead.length - signal.length);
+  for (const f of framesOf(lead, SR, FFT, 40)) {
+    const time = f.time - LEAD_MS;
+    t = time;
+    const r = pipe.process(f.db, time);
+    trace.push({ time, index: r.index, best: r.best, conf: r.confidence, onset: !!r.onset });
   }
   return { follower, events, done, trace };
 }

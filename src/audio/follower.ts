@@ -195,6 +195,7 @@ export class Follower {
     this.place(from, 0.7);
     this.switchTime = now;
     this.setIndex(from, 'manual', now, true);
+    this.awaitingFirstOnset = true;
   }
 
   stop(): void {
@@ -231,15 +232,22 @@ export class Follower {
     // An attack before the tap shouldn't immediately move us again.
     this.lastOnsetTime = -Infinity;
     this.setIndex(i, 'manual', now, true);
+    this.awaitingFirstOnset = true;
   }
 
   /** Called when an attack is detected. strength: 1 = strum, 0.35 = single note. */
   onset(time: number, strength = 1): void {
+    if (this.awaitingFirstOnset && this.status === 'listening') {
+      this.awaitingFirstOnset = false;
+      this.switchTime = time;
+    }
     this.lastOnsetTime = time;
     this.lastOnsetStrength = strength;
     this.freshOnset = true;
   }
   private freshOnset = false;
+  /** after Start or a manual jump, the chord's clock starts at the first attack */
+  private awaitingFirstOnset = true;
 
   /** Update the strength of the latest attack as its spread becomes known. */
   refineOnset(strength: number): void {
