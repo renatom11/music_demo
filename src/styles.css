@@ -48,6 +48,7 @@ button { cursor: pointer; }
 .song-card .meta { color: var(--muted); font-size: 14px; }
 .song-card .grow { flex: 1; min-width: 0; }
 .song-card .del { background: none; border: 0; color: var(--muted); font-size: 20px; padding: 4px 8px; }
+a.btn { text-decoration: none; color: inherit; display: inline-block; }
 .btn { border: 1px solid var(--outline); background: var(--surface); border-radius: 999px; padding: 10px 18px; font-weight: 600; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn:disabled { opacity: 0.5; }
@@ -124,3 +125,14 @@ textarea.song-text { width: 100%; min-height: 50vh; font: 15px/1.5 ui-monospace,
 .belief { grid-column: 1 / -1; display: flex; height: 22px; align-items: end; gap: 1px; }
 .belief > div { flex: 1; background: var(--muted); min-height: 1px; }
 .belief > div.cur { background: var(--accent); }
+
+/* Only the chart flexes; everything else keeps its natural height. */
+.player > :not(.chart) { flex: none; }
+.player .debug:not([hidden]) ~ .controls { padding-top: 8px; }
+.player.debugging .diagrams { display: none; }
+.player .chart { min-height: 140px; }
+.debug { max-height: 38vh; overflow-y: auto; }
+@media (max-height: 640px) {
+  .diagrams { min-height: 0; }
+  .diagram.small { display: none; }
+}

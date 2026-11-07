@@ -9,6 +9,8 @@ import { Controls } from './controls';
 import { DebugPanel } from './debug';
 import { h } from './dom';
 import { storage } from './storage';
+import { renderDiagram } from './diagram';
+import { WakeLock } from './wakelock';
 
 const PROCESS_MS = 38; // ~25 Hz analysis
 
@@ -40,6 +42,9 @@ export class Player {
   private toastTimer = 0;
   private sensitivity: number;
   private starting = false;
+  private diagrams = h('div.diagrams', { title: 'Tap to switch between full and easy shapes' });
+  private easyShapes = storage.get('easy') === '1';
+  private wake = new WakeLock();
 
   constructor(readonly song: Song, opts: PlayerOptions) {
     this.flat = flattenSong(song);
@@ -85,12 +90,36 @@ export class Player {
       this.debug.el,
       this.controls.el,
     );
+    this.el.classList.toggle('debugging', this.debug.visible);
     this.render(false);
   }
 
-  /** Hook for subclasses / later milestones to add UI between chart and controls. */
-  protected extraSlot(): HTMLElement | null {
-    return null;
+  private extraSlot(): HTMLElement {
+    this.diagrams.addEventListener('click', () => {
+      this.easyShapes = !this.easyShapes;
+      storage.set('easy', this.easyShapes ? '1' : '0');
+      this.drawDiagrams(this.follower.index);
+    });
+    return this.diagrams;
+  }
+
+  private drawnDiagrams = '';
+  private drawDiagrams(i: number): void {
+    const cur = this.flat.chords[i]?.chord;
+    const nxt = this.flat.chords[i + 1]?.chord;
+    const key = `${cur}|${nxt}|${this.easyShapes}`;
+    if (key === this.drawnDiagrams) return;
+    this.drawnDiagrams = key;
+    const big = renderDiagram(cur, { scale: 1.1, easy: this.easyShapes });
+    const parts: HTMLElement[] = [big];
+    if (nxt) {
+      const small = renderDiagram(nxt, { scale: 0.75, easy: this.easyShapes });
+      small.classList.add('small');
+      small.append(h('div.caption', { text: `next: ${nxt}` }));
+      parts.push(small);
+    }
+    big.append(h('div.caption', { text: cur }));
+    this.diagrams.replaceChildren(...parts);
   }
 
   private where(index: number): string {
@@ -98,15 +127,16 @@ export class Player {
     return line.passes > 1 ? `${line.sectionName} ${line.pass + 1}/${line.passes}` : line.sectionName;
   }
 
-  protected render(smooth = true): void {
+  private render(smooth = true): void {
     const i = this.follower.index;
     this.chart.setPosition(i, smooth);
     this.sectionEl.textContent = this.where(i);
     this.onPosition(i);
   }
 
-  /** Called whenever the shown position changes. */
-  protected onPosition(_index: number): void {}
+  private onPosition(index: number): void {
+    this.drawDiagrams(index);
+  }
 
   private setSensitivity(v: number): void {
     this.sensitivity = v;
@@ -118,6 +148,7 @@ export class Player {
   private toggleDebug(): void {
     this.debug.visible = !this.debug.visible;
     this.controls.setDebugActive(this.debug.visible);
+    this.el.classList.toggle('debugging', this.debug.visible);
     storage.set('debug', this.debug.visible ? '1' : '0');
   }
 
@@ -162,8 +193,10 @@ export class Player {
     this.onListening(false);
   }
 
-  /** Called when listening starts/stops. */
-  protected onListening(_on: boolean): void {}
+  private onListening(on: boolean): void {
+    if (on) void this.wake.acquire();
+    else void this.wake.release();
+  }
 
   private loop = (t: number): void => {
     this.raf = requestAnimationFrame(this.loop);
